@@ -1,7 +1,14 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { files, folders } from '../services/api';
 import { AuthContext } from '../context/AuthContext';
-import { FaSearch, FaCog, FaQuestionCircle, FaGoogleDrive, FaUsers, FaClock, FaStar, FaTrash, FaCloud, FaFolder, FaFile, FaEllipsisV, FaTh, FaList, FaPlus, FaUpload, FaFolderPlus, FaDownload, FaUserPlus, FaImage, FaFilePdf, FaFileWord, FaFileExcel, FaFileVideo, FaFileAudio, FaFileArchive, FaFileCode } from 'react-icons/fa';
+import QuickAccess from '../components/QuickAccess';
+import Breadcrumb from '../components/Breadcrumb';
+import DragDropZone from '../components/DragDropZone';
+import ContextMenu from '../components/ContextMenu';
+import FilePreview from '../components/FilePreview';
+import ProfileSettings from '../components/ProfileSettings';
+import '../styles/menu.css';
+import { FaSearch, FaCog, FaQuestionCircle, FaGoogleDrive, FaUsers, FaClock, FaStar, FaTrash, FaCloud, FaFolder, FaFile, FaEllipsisV, FaTh, FaList, FaPlus, FaUpload, FaFolderPlus, FaDownload, FaUserPlus, FaImage, FaFilePdf, FaFileWord, FaFileExcel, FaFileVideo, FaFileAudio, FaFileArchive, FaFileCode, FaUser } from 'react-icons/fa';
 
 const Dashboard = () => {
   const { user, logout } = useContext(AuthContext);
@@ -13,6 +20,10 @@ const Dashboard = () => {
   const [viewMode, setViewMode] = useState('grid');
   const [searchQuery, setSearchQuery] = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [contextMenu, setContextMenu] = useState(null);
+  const [previewFile, setPreviewFile] = useState(null);
+  const [breadcrumbPath, setBreadcrumbPath] = useState([]);
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -37,7 +48,7 @@ const Dashboard = () => {
   };
 
   const handleUpload = async (e) => {
-    const file = e.target.files[0];
+    const file = e.target?.files?.[0] || e;
     if (!file) return;
     const formData = new FormData();
     formData.append('file', file);
@@ -145,6 +156,7 @@ const Dashboard = () => {
   const storagePercent = (usedStorage / totalStorage) * 100;
 
   return (
+    <DragDropZone onFileDrop={handleUpload}>
     <div style={styles.app}>
       {/* Header */}
       <header style={styles.header}>
@@ -173,14 +185,37 @@ const Dashboard = () => {
           <div style={styles.avatarContainer} onClick={() => setShowUserMenu(!showUserMenu)}>
             <div style={styles.avatar}>{user?.name?.charAt(0).toUpperCase()}</div>
             {showUserMenu && (
-              <div style={styles.userDropdown}>
-                <div style={styles.userInfo}>
-                  <div style={styles.avatarLarge}>{user?.name?.charAt(0).toUpperCase()}</div>
-                  <div style={styles.userName}>{user?.name}</div>
-                  <div style={styles.userEmail}>{user?.email}</div>
+              <>
+                <div className="overlay-click" onClick={() => setShowUserMenu(false)}></div>
+                <div className="user-dropdown" style={styles.userDropdown}>
+                  <div style={styles.userInfo}>
+                    <div style={styles.avatarLarge}>{user?.name?.charAt(0).toUpperCase()}</div>
+                    <div style={styles.userName}>{user?.name}</div>
+                    <div style={styles.userEmail}>{user?.email}</div>
+                  </div>
+                  <div style={styles.menuItems}>
+                    <button 
+                      className="menu-item"
+                      onClick={() => { setShowSettings(true); setShowUserMenu(false); }} 
+                      style={styles.menuItem}
+                    >
+                      <FaUser /> My Account
+                    </button>
+                    <button 
+                      className="menu-item"
+                      onClick={() => { setShowSettings(true); setShowUserMenu(false); }} 
+                      style={styles.menuItem}
+                    >
+                      <FaCog /> Settings
+                    </button>
+                    <button className="menu-item" style={styles.menuItem}>
+                      <FaQuestionCircle /> Help
+                    </button>
+                  </div>
+                  <div style={styles.menuDivider}></div>
+                  <button onClick={logout} style={styles.signOutBtn}>Sign out</button>
                 </div>
-                <button onClick={logout} style={styles.signOutBtn}>Sign out</button>
-              </div>
+              </>
             )}
           </div>
         </div>
@@ -233,6 +268,7 @@ const Dashboard = () => {
 
         {/* Content */}
         <main style={styles.content}>
+          <Breadcrumb path={breadcrumbPath} onNavigate={setCurrentFolder} />
           <div style={styles.toolbar}>
             <div style={styles.toolbarLeft}>
               <label style={styles.uploadButton}>
@@ -252,6 +288,9 @@ const Dashboard = () => {
           </div>
 
           <div style={styles.contentArea}>
+            {currentView === 'myDrive' && !currentFolder && (
+              <QuickAccess files={fileList} onFileClick={(file) => setPreviewFile(file)} />
+            )}
             {viewMode === 'grid' ? (
               <div style={styles.gridView}>
                 {filteredFolders.map(folder => (
@@ -266,7 +305,15 @@ const Dashboard = () => {
                   </div>
                 ))}
                 {filteredFiles.map(file => (
-                  <div key={file._id} style={styles.gridItem}>
+                  <div 
+                    key={file._id} 
+                    style={styles.gridItem}
+                    onClick={() => setPreviewFile(file)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setContextMenu({ x: e.clientX, y: e.clientY, item: { id: file._id, name: file.originalName, type: 'file' } });
+                    }}
+                  >
                     <div style={styles.gridItemHeader}>
                       {getFileIcon(file.mimeType, 24)}
                       <div style={styles.fileActions}>
@@ -338,7 +385,36 @@ const Dashboard = () => {
           </div>
         </main>
       </div>
+      
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          item={contextMenu.item}
+          onClose={() => setContextMenu(null)}
+          onDownload={handleDownload}
+          onShare={handleShare}
+          onDelete={contextMenu.item.type === 'file' ? handleDelete : handleDeleteFolder}
+          onRename={(id) => alert('Rename feature coming soon')}
+        />
+      )}
+      
+      {previewFile && (
+        <FilePreview
+          file={previewFile}
+          onClose={() => setPreviewFile(null)}
+          onDownload={handleDownload}
+          onShare={handleShare}
+          onDelete={handleDelete}
+        />
+      )}
+      
+      <ProfileSettings 
+        isOpen={showSettings} 
+        onClose={() => setShowSettings(false)} 
+      />
     </div>
+    </DragDropZone>
   );
 };
 
@@ -359,6 +435,9 @@ const styles = {
   avatarLarge: { width: '80px', height: '80px', borderRadius: '50%', background: '#1a73e8', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', fontWeight: '500', margin: '0 auto 16px' },
   userName: { fontSize: '16px', fontWeight: '500', marginBottom: '4px', color: '#202124' },
   userEmail: { fontSize: '14px', color: '#5f6368' },
+  menuItems: { display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '16px' },
+  menuItem: { background: 'none', border: 'none', padding: '12px 16px', textAlign: 'left', cursor: 'pointer', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '14px', color: '#202124', transition: 'background 0.2s ease' },
+  menuDivider: { height: '1px', background: '#e0e0e0', margin: '8px 0' },
   signOutBtn: { width: '100%', padding: '10px', background: 'transparent', border: '1px solid #dadce0', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', color: '#202124', fontWeight: '500' },
   main: { flex: 1, display: 'flex', overflow: 'hidden' },
   sidebar: { width: '256px', borderRight: '1px solid #e0e0e0', padding: '8px', display: 'flex', flexDirection: 'column', background: '#fff' },

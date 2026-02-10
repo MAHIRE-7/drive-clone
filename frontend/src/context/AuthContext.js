@@ -31,13 +31,25 @@ export const AuthProvider = ({ children }) => {
     setUser(res.data.user);
   };
 
+  const updateProfile = async (profileData) => {
+    try {
+      // For now, just update local state since backend endpoint may not exist
+      setUser(prev => ({ ...prev, ...profileData }));
+      // TODO: Add actual API call when backend supports it
+      // const res = await auth.updateProfile(profileData);
+      // setUser(res.data);
+    } catch (error) {
+      throw error;
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, register, logout, loading, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );

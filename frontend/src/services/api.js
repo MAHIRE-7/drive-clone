@@ -13,7 +13,8 @@ API.interceptors.request.use((config) => {
 export const auth = {
   register: (data) => API.post('/auth/register', data),
   login: (data) => API.post('/auth/login', data),
-  getProfile: () => API.get('/auth/profile')
+  getProfile: () => API.get('/auth/profile'),
+  updateProfile: (data) => API.put('/auth/profile', data)
 };
 
 export const files = {
