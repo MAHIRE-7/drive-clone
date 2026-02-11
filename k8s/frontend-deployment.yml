@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment 
+metadata: 
+  name: frontend-deployment
+  namespace: web-app
+spec: 
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels: 
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: amitavroy/frontend:latest
+        ports:
+        - containerPort: 3000
+        env:
+          - name: REACT_APP_BACKEND_URL
+            value: "http://localhost:5000"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+
+
+---
+apiVersion: v1 
+kind: Service 
+metadata:
+  name: frontend-service
+  namespace: web-app
+spec: 
+  selector:
+    app: frontend
+  type: NodePort
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+      

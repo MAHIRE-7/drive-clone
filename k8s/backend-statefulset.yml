@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: backend-statefulset
+  namespace: web-app
+spec:
+  serviceName: "backend-service"
+  replicas: 3
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend
+        image: backend:latest
+        ports:
+        - containerPort: 5000
+        env:
+          - name: PORT 
+            value: "5000"
+          - name: MONGODB_URI
+            value: mongodb://admin:admin123@12.0.135.218:27017/drive-clone?authSource=admin
+          - name: JWT_SECRET
+            value: your_jwt_secret_key_here
+          - name: FRONTEND_URL
+            value: http://65.0.185.144:3000
+          
+
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name:  backend-service
+  namespace: web-app
+spec:
+  selector:
+    app:  backend
+  type: ClusterIP
+  ports:
+  - protocol: TCP
+    port:  5000
+    targetPort:  5000
