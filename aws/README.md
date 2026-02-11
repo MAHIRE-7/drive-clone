@@ -7,6 +7,59 @@
 
 ---
 
+## Quick Setup with Scripts
+
+### 1. MongoDB Server (Private Subnet)
+```bash
+wget https://raw.githubusercontent.com/MAHIRE-7/drive-clone/main/aws/mongodb.sh
+chmod +x mongodb.sh
+./mongodb.sh
+```
+
+### 2. Backend Server (Private Subnet)
+```bash
+wget https://raw.githubusercontent.com/MAHIRE-7/drive-clone/main/aws/backend.sh
+chmod +x backend.sh
+# Edit backend.sh and replace <MONGODB_PRIVATE_IP> and <FRONTEND_PUBLIC_IP>
+nano backend.sh
+./backend.sh
+```
+
+### 3. Frontend Server (Public Subnet)
+```bash
+wget https://raw.githubusercontent.com/MAHIRE-7/drive-clone/main/aws/frontend.sh
+chmod +x frontend.sh
+# Edit frontend.sh and replace <FRONTEND_PUBLIC_IP> and <BACKEND_PRIVATE_IP>
+nano frontend.sh
+./frontend.sh
+```
+
+### 4. Access Application
+Open browser: `http://<FRONTEND_PUBLIC_IP>`
+
+---
+
+## Manual Setup Instructions
+
+---
+
+## Setup Scripts
+
+Three automated setup scripts are provided:
+
+1. **mongodb.sh** - Sets up MongoDB with Docker
+2. **backend.sh** - Sets up Node.js backend with PM2
+3. **frontend.sh** - Sets up React frontend with Nginx
+
+**Before running scripts, update these placeholders:**
+- `<MONGODB_PRIVATE_IP>` - MongoDB server's private IP
+- `<BACKEND_PRIVATE_IP>` - Backend server's private IP  
+- `<FRONTEND_PUBLIC_IP>` - Frontend server's public IP
+
+---
+
+## Manual Setup Instructions
+
 ## 1. Database Server Setup (Private Subnet)
 
 ### Install Docker
