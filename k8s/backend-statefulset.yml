@@ -20,28 +20,34 @@ spec:
         ports:
         - containerPort: 5000
         env:
-          - name: PORT 
+          - name: PORT
             value: "5000"
           - name: MONGODB_URI
-            value: mongodb://admin:admin123@12.0.135.218:27017/drive-clone?authSource=admin
+            value: mongodb://admin:admin123@mongo-service:27017/drive-clone?authSource=admin
           - name: JWT_SECRET
             value: your_jwt_secret_key_here
           - name: FRONTEND_URL
-            value: http://65.0.185.144:3000
-          
-
+            value: http://frontend-service:3000
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        
 
 ---
-kind: Service
 apiVersion: v1
+kind: Service
 metadata:
-  name:  backend-service
+  name: backend-service
   namespace: web-app
 spec:
   selector:
-    app:  backend
+    app: backend
   type: ClusterIP
   ports:
   - protocol: TCP
-    port:  5000
-    targetPort:  5000
+    port: 5000
+    targetPort: 5000

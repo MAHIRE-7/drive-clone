@@ -20,7 +20,7 @@ spec:
         - containerPort: 3000
         env:
           - name: REACT_APP_BACKEND_URL
-            value: "http://localhost:5000"
+            value: "http://backend-service:5000"
         resources:
           requests:
             memory: "128Mi"
