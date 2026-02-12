@@ -23,9 +23,15 @@ spec:
           - name: PORT
             value: "5000"
           - name: MONGODB_URI
-            value: mongodb://admin:admin123@mongo-service:27017/drive-clone?authSource=admin
+            valueFrom:
+              secretKeyRef:
+                name: webapp-secret
+                key: MONGODB_URI
           - name: JWT_SECRET
-            value: your_jwt_secret_key_here
+            valueFrom:
+              secretKeyRef: 
+                name: webapp-secret
+                key: JWT_SECRET
           - name: FRONTEND_URL
             value: http://frontend-service:3000
         resources:
