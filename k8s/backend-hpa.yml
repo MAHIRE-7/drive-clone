@@ -1,0 +1,19 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler 
+metadata: 
+  name: backend-hpa
+  namespace: web-app
+spec:
+  scaleTargetRef:
+    kind: StatefulSet 
+    name: backend-statefulset
+    apiVersion: apps/v1
+  minReplicas: 3
+  maxReplicas: 5
+  metrics:
+   - type: Resource
+     resource:
+       name: cpu
+       target:
+         type: Utilization
+         averageUtilization: 70
