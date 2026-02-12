@@ -15,12 +15,9 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: amitavroy/frontend:latest
+        image: manodayahire/drive-clone-frontend:v3
         ports:
-        - containerPort: 3000
-        env:
-          - name: REACT_APP_BACKEND_URL
-            value: "http://backend-service:5000"
+        - containerPort: 80
         resources:
           requests:
             memory: "128Mi"
@@ -42,6 +39,6 @@ spec:
   type: NodePort
   ports:
     - protocol: TCP
-      port: 3000
-      targetPort: 3000
+      port: 80
+      targetPort: 80
       
