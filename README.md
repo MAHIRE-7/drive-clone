@@ -2,6 +2,10 @@
 
 A full-stack Google Drive clone with separate frontend and backend servers.
 
+## Architecture
+
+![Architecture Diagram](./DEVOPSl2.drawio.png)
+
 ## Features
 
 - 🔐 User authentication (register/login)
@@ -107,6 +111,23 @@ docker-compose down -v
 ```
 
 ## Deployment
+
+### Kubernetes Deployment
+See [k8s/README.md](./k8s/README.md) for complete Kubernetes deployment guide with:
+- CI/CD Pipeline setup
+- SigNoz observability integration
+- Auto-scaling configuration
+- Production best practices
+
+### AWS EC2 Deployment
+See [aws/README.md](./aws/README.md) for AWS deployment guide with:
+- Separate EC2 instances setup
+- Auto Scaling Groups (ASG) configuration
+- Load Balancer setup
+- Security group configuration
+
+### Docker Compose (Local Development)
+See [docker-compose.yml](./docker-compose.yml) for local development setup.
 
 ### Backend Deployment
 - Deploy to services like Heroku, AWS EC2, DigitalOcean, or Railway

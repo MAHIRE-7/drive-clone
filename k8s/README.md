@@ -1,61 +1,229 @@
 # Kubernetes Deployment Guide - Google Drive Clone
 
+## Table of Contents
+- [Architecture Overview](#architecture-overview)
+- [CI/CD Pipeline](#cicd-pipeline)
+- [File Explanations](#file-explanations)
+- [Deployment](#deployment)
+- [Monitoring & Operations](#monitoring--operations)
+- [Security](#security)
+- [Troubleshooting](#troubleshooting)
+
+---
+
 ## Architecture Overview
 
+### Application Architecture
+
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                         Internet                             │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-                           ▼
-                  ┌─────────────────┐
-                  │  NodePort/LB    │
-                  │  Port: 30000+   │
-                  └────────┬────────┘
-                           │
-                           ▼
-              ┌────────────────────────┐
-              │  Frontend Service      │
-              │  Type: NodePort        │
-              │  Port: 80              │
-              └──────────┬─────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                            Internet                                  │
+└────────────────────────────┬────────────────────────────────────────┘
+                             │
+                             ▼
+                    ┌─────────────────┐
+                    │   Load Balancer │
+                    │   (NodePort/LB) │
+                    └────────┬────────┘
+                             │
+                             ▼
+              ┌──────────────────────────────┐
+              │    Frontend Service          │
+              │    Type: NodePort            │
+              │    Port: 80                  │
+              └──────────┬───────────────────┘
                          │
                          ▼
-              ┌────────────────────────┐
-              │  Frontend Pod          │
-              │  - Nginx (Port 80)     │
-              │  - React Build         │
-              │  - Proxies /api/*      │
-              └──────────┬─────────────┘
+              ┌──────────────────────────────┐
+              │    Frontend Pods (Nginx)     │
+              │    - Serves React Build      │
+              │    - Proxies /api/* → Backend│
+              │    - Port: 80                │
+              └──────────┬───────────────────┘
                          │
-                         │ /api/* requests
+                         │ Internal /api/* requests
                          ▼
-              ┌────────────────────────┐
-              │  Backend Service       │
-              │  Type: ClusterIP       │
-              │  Port: 5000            │
-              └──────────┬─────────────┘
-                         │
-                         ▼
-              ┌────────────────────────┐
-              │  Backend StatefulSet   │
-              │  - Node.js API         │
-              │  - Port: 5000          │
-              └──────────┬─────────────┘
+              ┌──────────────────────────────┐
+              │    Backend Service           │
+              │    Type: ClusterIP           │
+              │    Port: 5000                │
+              └──────────┬───────────────────┘
                          │
                          ▼
-              ┌────────────────────────┐
-              │  MongoDB Service       │
-              │  Type: ClusterIP       │
-              │  Port: 27017           │
-              └──────────┬─────────────┘
+              ┌──────────────────────────────┐
+              │    Backend Pods (Node.js)    │
+              │    - REST API                │
+              │    - JWT Auth                │
+              │    - File Upload             │
+              │    - Port: 5000              │
+              └──────────┬───────────────────┘
                          │
                          ▼
-              ┌────────────────────────┐
-              │  MongoDB StatefulSet   │
-              │  - MongoDB 7           │
-              │  - Persistent Storage  │
-              └────────────────────────┘
+              ┌──────────────────────────────┐
+              │    MongoDB Service           │
+              │    Type: ClusterIP           │
+              │    Port: 27017               │
+              └──────────┬───────────────────┘
+                         │
+                         ▼
+              ┌──────────────────────────────┐
+              │    MongoDB StatefulSet       │
+              │    - Database                │
+              │    - Persistent Volume       │
+              │    - Port: 27017             │
+              └──────────────────────────────┘
+```
+
+### Network Flow
+
+```
+┌─────────┐     HTTP      ┌──────────┐    /api/*    ┌─────────┐    MongoDB    ┌─────────┐
+│ Browser │ ────────────> │ Frontend │ ───────────> │ Backend │ ────────────> │ MongoDB │
+│         │               │  Nginx   │              │ Node.js │               │         │
+└─────────┘               └──────────┘              └─────────┘               └─────────┘
+   Public                    Port 80                 Port 5000                Port 27017
+                          (NodePort)               (ClusterIP)              (ClusterIP)
+```
+
+---
+
+## CI/CD Pipeline
+
+### DevOps Workflow
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                          Developer Workflow                               │
+└──────────────────────────────────────────────────────────────────────────┘
+
+1. Code Development
+   ├── Developer writes code
+   ├── Local testing
+   └── Git commit
+
+2. Source Control (GitHub)
+   ├── Push to repository
+   ├── Create Pull Request
+   └── Code Review
+
+3. CI Pipeline (GitHub Actions / Jenkins)
+   ├── Trigger on push/PR
+   ├── Run tests
+   │   ├── Unit tests
+   │   ├── Integration tests
+   │   └── Linting
+   ├── Build Docker images
+   │   ├── Frontend: manodayahire/drive-clone-frontend:v3
+   │   └── Backend: manodayahire/drive-clone-backend:v1
+   └── Push to Docker Hub
+
+4. CD Pipeline (ArgoCD / Flux)
+   ├── Detect new image
+   ├── Update Kubernetes manifests
+   ├── Apply to cluster
+   └── Health checks
+
+5. Deployment
+   ├── Rolling update
+   ├── Zero downtime
+   └── Rollback on failure
+
+6. Monitoring
+   ├── Prometheus metrics
+   ├── Grafana dashboards
+   ├── Alert on errors
+   └── Log aggregation (ELK)
+```
+
+### CI/CD Pipeline Diagram
+
+```
+┌─────────┐      ┌─────────┐      ┌──────────┐      ┌────────────┐      ┌──────────┐
+│   Git   │ ───> │ GitHub  │ ───> │  Build   │ ───> │   Docker   │ ───> │   K8s    │
+│  Commit │      │ Actions │      │  & Test  │      │    Hub     │      │ Cluster  │
+└─────────┘      └─────────┘      └──────────┘      └────────────┘      └──────────┘
+                      │                  │                  │                  │
+                      │                  │                  │                  │
+                      ▼                  ▼                  ▼                  ▼
+                 Webhook           Unit Tests         Push Images        Rolling Update
+                 Trigger           Lint Code          Tag: latest        Health Checks
+                                   Build Images       Tag: v1.0.0        Monitor Pods
+```
+
+### GitHub Actions Workflow Example
+
+```yaml
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    
+    - name: Login to Docker Hub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    
+    - name: Build and push Frontend
+      uses: docker/build-push-action@v4
+      with:
+        context: ./frontend
+        push: true
+        tags: |
+          manodayahire/drive-clone-frontend:latest
+          manodayahire/drive-clone-frontend:${{ github.sha }}
+    
+    - name: Build and push Backend
+      uses: docker/build-push-action@v4
+      with:
+        context: ./backend
+        push: true
+        tags: |
+          manodayahire/drive-clone-backend:latest
+          manodayahire/drive-clone-backend:${{ github.sha }}
+    
+    - name: Update Kubernetes manifests
+      run: |
+        sed -i 's|image: manodayahire/drive-clone-frontend:.*|image: manodayahire/drive-clone-frontend:${{ github.sha }}|' k8s/frontend-deployment.yml
+        sed -i 's|image: manodayahire/drive-clone-backend:.*|image: manodayahire/drive-clone-backend:${{ github.sha }}|' k8s/backend-statefulset.yml
+    
+    - name: Deploy to Kubernetes
+      uses: azure/k8s-deploy@v4
+      with:
+        manifests: |
+          k8s/namespace.yml
+          k8s/mongo-statefulset.yml
+          k8s/backend-statefulset.yml
+          k8s/frontend-deployment.yml
+```
+
+### GitOps with ArgoCD
+
+```
+┌──────────────┐         ┌──────────────┐         ┌──────────────┐
+│   Git Repo   │ ──────> │   ArgoCD     │ ──────> │  Kubernetes  │
+│  (manifests) │  Sync   │   Server     │  Apply  │   Cluster    │
+└──────────────┘         └──────────────┘         └──────────────┘
+       │                        │                        │
+       │                        │                        │
+       ▼                        ▼                        ▼
+  YAML files            Detect changes           Deploy pods
+  Helm charts           Auto-sync               Health checks
+  Kustomize             Rollback                Monitor status
 ```
 
 ---
@@ -295,7 +463,45 @@ http://<node-ip>:<node-port>
 
 ---
 
-## Deployment Order
+## Deployment
+
+### Automated Deployment Pipeline
+
+```bash
+#!/bin/bash
+# deploy.sh - Automated deployment script
+
+set -e
+
+echo "🚀 Starting deployment..."
+
+# 1. Build Docker images
+echo "📦 Building Docker images..."
+docker build -t manodayahire/drive-clone-frontend:latest ./frontend
+docker build -t manodayahire/drive-clone-backend:latest ./backend
+
+# 2. Push to registry
+echo "⬆️  Pushing to Docker Hub..."
+docker push manodayahire/drive-clone-frontend:latest
+docker push manodayahire/drive-clone-backend:latest
+
+# 3. Apply Kubernetes manifests
+echo "☸️  Deploying to Kubernetes..."
+kubectl apply -f k8s/namespace.yml
+kubectl apply -f k8s/mongo-statefulset.yml
+kubectl wait --for=condition=ready pod -l app=mongo -n web-app --timeout=300s
+
+kubectl apply -f k8s/backend-statefulset.yml
+kubectl wait --for=condition=ready pod -l app=backend -n web-app --timeout=300s
+
+kubectl apply -f k8s/frontend-deployment.yml
+kubectl wait --for=condition=ready pod -l app=frontend -n web-app --timeout=300s
+
+echo "✅ Deployment complete!"
+kubectl get pods -n web-app
+```
+
+### Manual Deployment Order
 
 ```bash
 # 1. Create namespace
@@ -376,7 +582,372 @@ kubectl scale statefulset backend-statefulset --replicas=3 -n web-app
 
 ---
 
-## Monitoring & Debugging
+## Monitoring & Operations
+
+### Full Observability with SigNoz
+
+**SigNoz** provides complete observability with metrics, traces, and logs in a single platform.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         SigNoz Platform                         │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
+│  │   Metrics    │  │    Traces    │  │     Logs     │         │
+│  │ (Prometheus) │  │ (OpenTelemetry)│ │  (ClickHouse)│         │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘         │
+│         │                  │                  │                 │
+│         └──────────────────┴──────────────────┘                 │
+│                            │                                    │
+│                    ┌───────▼────────┐                          │
+│                    │  Unified Query │                          │
+│                    │    Engine      │                          │
+│                    └───────┬────────┘                          │
+│                            │                                    │
+│                    ┌───────▼────────┐                          │
+│                    │   Dashboard    │                          │
+│                    │   & Alerts     │                          │
+│                    └────────────────┘                          │
+└─────────────────────────────────────────────────────────────────┘
+                            ▲
+                            │
+                    ┌───────┴────────┐
+                    │  Kubernetes    │
+                    │    Cluster     │
+                    │                │
+                    │  ┌──────────┐  │
+                    │  │ Frontend │  │
+                    │  │ Backend  │  │
+                    │  │ MongoDB  │  │
+                    │  └──────────┘  │
+                    └────────────────┘
+```
+
+### Install SigNoz on Kubernetes
+
+```bash
+# Add SigNoz Helm repository
+helm repo add signoz https://charts.signoz.io
+helm repo update
+
+# Create namespace
+kubectl create namespace signoz
+
+# Install SigNoz
+helm install signoz signoz/signoz \
+  --namespace signoz \
+  --set frontend.service.type=LoadBalancer
+
+# Wait for pods to be ready
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=signoz -n signoz --timeout=600s
+
+# Get SigNoz URL
+kubectl get svc -n signoz signoz-frontend
+```
+
+### Instrument Backend with OpenTelemetry
+
+**Install dependencies:**
+```bash
+cd backend
+npm install @opentelemetry/sdk-node \
+  @opentelemetry/auto-instrumentations-node \
+  @opentelemetry/exporter-trace-otlp-http
+```
+
+**Create `tracing.js`:**
+```javascript
+const { NodeSDK } = require('@opentelemetry/sdk-node');
+const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node');
+const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-http');
+
+const sdk = new NodeSDK({
+  traceExporter: new OTLPTraceExporter({
+    url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://signoz-otel-collector.signoz:4318/v1/traces',
+  }),
+  instrumentations: [getNodeAutoInstrumentations()],
+  serviceName: 'drive-clone-backend',
+});
+
+sdk.start();
+
+process.on('SIGTERM', () => {
+  sdk.shutdown()
+    .then(() => console.log('Tracing terminated'))
+    .catch((error) => console.log('Error terminating tracing', error))
+    .finally(() => process.exit(0));
+});
+```
+
+**Update `server.js`:**
+```javascript
+require('./tracing'); // Add at the very top
+require('dotenv').config();
+const express = require('express');
+// ... rest of the code
+```
+
+### Update Backend Deployment
+
+```yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: backend-statefulset
+  namespace: web-app
+spec:
+  serviceName: "backend-service"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+      annotations:
+        signoz.io/scrape: "true"
+        signoz.io/port: "5000"
+    spec:
+      containers:
+      - name: backend
+        image: manodayahire/drive-clone-backend:v2
+        ports:
+        - containerPort: 5000
+        env:
+          - name: PORT
+            value: "5000"
+          - name: MONGODB_URI
+            value: mongodb://admin:admin123@mongo-service:27017/drive-clone?authSource=admin
+          - name: JWT_SECRET
+            value: your_jwt_secret_key_here
+          - name: FRONTEND_URL
+            value: http://frontend-service:3000
+          - name: OTEL_EXPORTER_OTLP_ENDPOINT
+            value: http://signoz-otel-collector.signoz:4318/v1/traces
+          - name: OTEL_SERVICE_NAME
+            value: drive-clone-backend
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+```
+
+### Instrument Frontend with OpenTelemetry
+
+**Install dependencies:**
+```bash
+cd frontend
+npm install @opentelemetry/api \
+  @opentelemetry/sdk-trace-web \
+  @opentelemetry/instrumentation-fetch \
+  @opentelemetry/instrumentation-xml-http-request \
+  @opentelemetry/exporter-trace-otlp-http
+```
+
+**Create `src/tracing.js`:**
+```javascript
+import { WebTracerProvider } from '@opentelemetry/sdk-trace-web';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { registerInstrumentations } from '@opentelemetry/instrumentation';
+import { FetchInstrumentation } from '@opentelemetry/instrumentation-fetch';
+import { XMLHttpRequestInstrumentation } from '@opentelemetry/instrumentation-xml-http-request';
+
+const provider = new WebTracerProvider();
+
+const exporter = new OTLPTraceExporter({
+  url: process.env.REACT_APP_OTEL_ENDPOINT || 'http://signoz-otel-collector.signoz:4318/v1/traces',
+});
+
+provider.addSpanProcessor(new BatchSpanProcessor(exporter));
+provider.register();
+
+registerInstrumentations({
+  instrumentations: [
+    new FetchInstrumentation(),
+    new XMLHttpRequestInstrumentation(),
+  ],
+});
+```
+
+**Update `src/index.js`:**
+```javascript
+import './tracing'; // Add at the very top
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+// ... rest of the code
+```
+
+### SigNoz Dashboard Features
+
+**1. Application Metrics**
+- Request rate (requests/sec)
+- Error rate (%)
+- Response time (p50, p90, p99)
+- Apdex score
+
+**2. Distributed Tracing**
+- End-to-end request flow
+- Service dependencies
+- Latency breakdown
+- Error traces
+
+**3. Logs**
+- Structured logs from all services
+- Log correlation with traces
+- Full-text search
+- Log aggregation
+
+**4. Alerts**
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: signoz-alerts
+  namespace: signoz
+data:
+  alerts.yaml: |
+    alerts:
+      - name: High Error Rate
+        query: error_rate > 5
+        duration: 5m
+        severity: critical
+        channels:
+          - slack
+          - email
+      
+      - name: High Response Time
+        query: p99_latency > 1000
+        duration: 5m
+        severity: warning
+        channels:
+          - slack
+      
+      - name: Pod Down
+        query: up == 0
+        duration: 1m
+        severity: critical
+        channels:
+          - pagerduty
+```
+
+### Access SigNoz Dashboard
+
+```bash
+# Get SigNoz frontend URL
+kubectl get svc signoz-frontend -n signoz
+
+# Port forward for local access
+kubectl port-forward svc/signoz-frontend 3301:3301 -n signoz
+
+# Access at: http://localhost:3301
+```
+
+### Key Metrics to Monitor
+
+**Backend Metrics:**
+- API response time (p50, p95, p99)
+- Request throughput (req/sec)
+- Error rate (%)
+- Database query time
+- File upload/download time
+- Active connections
+
+**Frontend Metrics:**
+- Page load time
+- Time to interactive (TTI)
+- First contentful paint (FCP)
+- API call latency
+- JavaScript errors
+- User sessions
+
+**Infrastructure Metrics:**
+- CPU usage per pod
+- Memory usage per pod
+- Disk I/O
+- Network throughput
+- Pod restart count
+- Node resource utilization
+
+### Custom Metrics Example
+
+**Backend custom metrics:**
+```javascript
+const { MeterProvider } = require('@opentelemetry/sdk-metrics');
+const { PrometheusExporter } = require('@opentelemetry/exporter-prometheus');
+
+const exporter = new PrometheusExporter({ port: 9464 });
+const meterProvider = new MeterProvider();
+meterProvider.addMetricReader(exporter);
+
+const meter = meterProvider.getMeter('drive-clone-backend');
+
+// Custom counters
+const fileUploadCounter = meter.createCounter('file_uploads_total');
+const fileDownloadCounter = meter.createCounter('file_downloads_total');
+const userRegistrationCounter = meter.createCounter('user_registrations_total');
+
+// Usage
+fileUploadCounter.add(1, { user_id: userId, file_type: fileType });
+```
+
+### Logging with SigNoz
+
+**Backend logging:**
+```javascript
+const winston = require('winston');
+const { format } = winston;
+
+const logger = winston.createLogger({
+  level: 'info',
+  format: format.combine(
+    format.timestamp(),
+    format.json()
+  ),
+  defaultMeta: { service: 'drive-clone-backend' },
+  transports: [
+    new winston.transports.Console(),
+  ],
+});
+
+// Usage
+logger.info('File uploaded', { 
+  userId: user.id, 
+  fileName: file.name, 
+  fileSize: file.size 
+});
+
+logger.error('Upload failed', { 
+  userId: user.id, 
+  error: error.message 
+});
+```
+
+### SigNoz Query Examples
+
+**1. Average response time by endpoint:**
+```
+avg(http_server_duration_milliseconds) by (http_route)
+```
+
+**2. Error rate:**
+```
+sum(rate(http_server_requests_total{status=~"5.."}[5m])) / sum(rate(http_server_requests_total[5m])) * 100
+```
+
+**3. Top 10 slowest endpoints:**
+```
+topk(10, avg(http_server_duration_milliseconds) by (http_route))
+```
+
+**4. Database query performance:**
+```
+avg(mongodb_query_duration_milliseconds) by (operation)
+```
+
+### Monitoring Commands
 
 ### Check Pod Status
 ```bash
