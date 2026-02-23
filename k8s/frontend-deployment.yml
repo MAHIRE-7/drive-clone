@@ -41,7 +41,7 @@ spec:
         - name: OTEL_LOGS_EXPORTER
           value: "otlp"
         - name: OTEL_RESOURCE_ATTRIBUTES
-          value: "deployment.environment=production,service.namespace=eks"
+          value: "deployment.environment=production,service.namespace=web-app"
 
 
 ---
