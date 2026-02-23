@@ -12,6 +12,8 @@ spec:
     metadata:
       labels: 
         app: frontend
+        environment: production
+        team: devops
     spec:
       containers:
       - name: frontend
@@ -25,6 +27,21 @@ spec:
           limits:
             memory: "256Mi"
             cpu: "200m"
+        env:
+        - name: OTEL_SERVICE_NAME
+          value: "DRIVE-clone-app"
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://172.31.6.192:4317"
+        - name: OTEL_EXPORTER_OTLP_PROTOCOL
+          value: "grpc"
+        - name: OTEL_TRACES_EXPORTER
+          value: "otlp"
+        - name: OTEL_METRICS_EXPORTER
+          value: "otlp"
+        - name: OTEL_LOGS_EXPORTER
+          value: "otlp"
+        - name: OTEL_RESOURCE_ATTRIBUTES
+          value: "deployment.environment=production,service.namespace=eks"
 
 
 ---
